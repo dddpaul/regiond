@@ -9,7 +9,10 @@ import (
 	"strings"
 	"net/http/httputil"
 	"math/rand"
+	"strconv"
 )
+
+var Port int
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
@@ -26,7 +29,7 @@ var serveCmd = &cobra.Command{
 				Host: "localhost:9092",
 			},
 		})
-		http.ListenAndServe(":9090", proxy)
+		http.ListenAndServe(":" + strconv.Itoa(Port), proxy)
 	},
 }
 
@@ -38,11 +41,11 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
+	serveCmd.PersistentFlags().IntVarP(&Port, "port", "p", 9090, "port on which the server will listen")
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
 }
 
 // Copy from net/http/httputil/reverseproxy.go
