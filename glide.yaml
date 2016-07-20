@@ -1,0 +1,5 @@
+package: smilenet.ru/fedpa-proxy
+import:
+- package: github.com/spf13/cobra
+  subpackages:
+  - cobra
