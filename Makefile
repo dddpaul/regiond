@@ -1,6 +1,6 @@
 .PHONY: all build release
 
-IMAGE=smile/fedpa-proxy
+IMAGE=smile/fedpa-tools
 DOCKER_REGISTRY=docker.infoline.ru:5000
 VERSION=$(shell cat VERSION)
 
@@ -8,8 +8,7 @@ all: build
 
 build:
 	@mkdir -p root/bin
-	@CGO_ENABLED=0 go build -o root/bin/server server.go  
-	@CGO_ENABLED=0 go build -o root/bin/proxy proxy.go
+	@CGO_ENABLED=0 go build -o root/bin/fedpa
 	@docker build --tag=${IMAGE} .
 
 release: build

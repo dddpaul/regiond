@@ -2,23 +2,20 @@ package cmd
 
 import (
 	"fmt"
-
 	"github.com/spf13/cobra"
-	"net/url"
-	"net/http"
 	"strings"
+	"net/url"
 	"net/http/httputil"
-	"math/rand"
+	"net/http"
 	"strconv"
+	"math/rand"
 )
 
-var Port int
-
-// serveCmd represents the serve command
-var serveCmd = &cobra.Command{
-	Use:   "serve",
+var proxyCmd = &cobra.Command{
+	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("Reverse proxy is listening on port %d\n", port)
 		proxy := NewMultipleHostReverseProxy([]*url.URL{
 			{
 				Scheme: "http",
@@ -29,23 +26,12 @@ var serveCmd = &cobra.Command{
 				Host: "localhost:9092",
 			},
 		})
-		http.ListenAndServe(":" + strconv.Itoa(Port), proxy)
+		http.ListenAndServe(":" + strconv.Itoa(port), proxy)
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-	serveCmd.PersistentFlags().IntVarP(&Port, "port", "p", 9090, "port on which the server will listen")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.AddCommand(proxyCmd)
 }
 
 // Copy from net/http/httputil/reverseproxy.go
