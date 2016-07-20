@@ -1,14 +1,11 @@
 package main
 
 import (
-	"math/rand"
-	"net"
-	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"net/http"
+	"math/rand"
 	"strings"
-	"time"
-	"log"
 )
 
 // Copy from net/http/httputil/reverseproxy.go
@@ -33,38 +30,19 @@ func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
 		req.URL.Host = target.Host
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
 	}
-	return &httputil.ReverseProxy{
-		Director: director,
-		Transport: &http.Transport{
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				println("CALLING PROXY")
-				return http.ProxyFromEnvironment(req)
-			},
-			Dial: func(network, addr string) (net.Conn, error) {
-				println("CALLING DIAL")
-				conn, err := (&net.Dialer{
-					Timeout:   30 * time.Second,
-					KeepAlive: 30 * time.Second,
-				}).Dial(network, addr)
-				if err != nil {
-					println("Error during DIAL:", err.Error())
-				}
-				return conn, err
-			},
-			TLSHandshakeTimeout: 10 * time.Second,
-		}}
+	return &httputil.ReverseProxy{Director: director}
 }
 
 func main() {
 	proxy := NewMultipleHostReverseProxy([]*url.URL{
 		{
 			Scheme: "http",
-			Host:   "localhost:9091",
+			Host: "localhost:9091",
 		},
 		{
 			Scheme: "http",
-			Host:   "localhost:9092",
+			Host: "localhost:9092",
 		},
 	})
-	log.Fatal(http.ListenAndServe(":9090", proxy))
+	http.ListenAndServe(":9090", proxy)
 }

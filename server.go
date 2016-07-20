@@ -18,5 +18,6 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		println("--->", os.Args[1], req.URL.String())
 	})
-	http.ListenAndServe(":"+os.Args[1], nil)
+	http.ListenAndServe(":" + os.Args[1], nil)
 }
+
