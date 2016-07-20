@@ -1,50 +1,23 @@
+// Copyright © 2016 NAME HERE <EMAIL ADDRESS>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
-	"net/http/httputil"
-	"net/url"
-	"net/http"
-	"math/rand"
-	"strings"
-	"fmt"
+	"smilenet.ru/fedpa-proxy/cmd"
 )
 
-// Copy from net/http/httputil/reverseproxy.go
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
-}
-
-// NewMultipleHostReverseProxy creates a reverse proxy that will randomly
-// select a host from the passed `targets`
-func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
-	director := func(req *http.Request) {
-		fmt.Println(req.RemoteAddr)
-		target := targets[rand.Int() % len(targets)]
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
-	}
-	return &httputil.ReverseProxy{Director: director}
-}
-
 func main() {
-	proxy := NewMultipleHostReverseProxy([]*url.URL{
-		{
-			Scheme: "http",
-			Host: "localhost:9091",
-		},
-		{
-			Scheme: "http",
-			Host: "localhost:9092",
-		},
-	})
-	http.ListenAndServe(":9090", proxy)
+	cmd.Execute()
 }
