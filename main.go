@@ -1,7 +1,7 @@
 package main
 
 import (
-	"smilenet.ru/fedpa-proxy/cmd"
+	"smilenet.ru/fedpa/cmd"
 )
 
 func main() {
