@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/boltdb/bolt"
 	"github.com/spf13/cobra"
 )
 
@@ -18,9 +20,21 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
+		db, err := bolt.Open("fedpa.db", 0600, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer db.Close()
+		db.Update(func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("IpAddresses"))
+			if err != nil {
+				return fmt.Errorf("Create bucket: %s", err)
+			}
+			return nil
+		})
 		targets := toUrls(upstreams)
 		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
-		proxy := NewMultipleHostReverseProxy(targets)
+		proxy := NewMultipleHostReverseProxy(db, targets)
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -32,10 +46,33 @@ func init() {
 
 // NewMultipleHostReverseProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
+func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		log.Println(req.RemoteAddr)
-		target := LoadBalance(targets)
+		ip := strings.Split(req.RemoteAddr, ":")[0]
+		var target *url.URL
+		var targetHost []byte
+		db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("IpAddresses"))
+			targetHost = b.Get([]byte(ip))
+			return nil
+		})
+
+		if targetHost != nil {
+			target = &url.URL{
+				Scheme: "http",
+				Host:   string(targetHost),
+			}
+			log.Printf("Upstream [%v] for [%s] is found in cache\n", target, ip)
+		} else {
+			target = LoadBalance(targets)
+			db.Update(func(tx *bolt.Tx) error {
+				b := tx.Bucket([]byte("IpAddresses"))
+				err := b.Put([]byte(ip), []byte(target.Host))
+				return err
+			})
+			log.Printf("Upstream [%v] for [%s] is cached", target, ip)
+		}
+
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)

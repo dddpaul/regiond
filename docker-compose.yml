@@ -3,18 +3,18 @@ version: "2"
 services:
 
   server1:
-#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.0
-    image: smile/fedpa-tools:1.0
+#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.1
+    image: smile/fedpa-tools:1.1
     command: ["httpserv", "-p", "80"]
 
   server2:
-#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.0
-    image: smile/fedpa-tools:1.0
+#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.1
+    image: smile/fedpa-tools:1.1
     command: ["httpserv", "-p", "80"]
 
   proxy:
-#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.0
-    image: smile/fedpa-tools:1.0
+#    image: docker.infoline.ru:5000/smile/fedpa-tools:1.1
+    image: smile/fedpa-tools:1.1
     depends_on: ["server1", "server2"]
     ports: ["9090:80"]
     command: ["proxy", "-p", "80", "-u", "server1:80,server2:80"]
