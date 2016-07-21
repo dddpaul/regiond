@@ -18,9 +18,9 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
-		urls := toUrls(upstreams)
-		fmt.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, urls)
-		proxy := NewMultipleHostReverseProxy(urls)
+		targets := toUrls(upstreams)
+		fmt.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
+		proxy := NewMultipleHostReverseProxy(targets)
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -28,6 +28,19 @@ var proxyCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(proxyCmd)
 	proxyCmd.PersistentFlags().StringSliceVarP(&upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
+}
+
+// NewMultipleHostReverseProxy creates a reverse proxy that will randomly
+// select a host from the passed `targets`
+func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
+	director := func(req *http.Request) {
+		fmt.Println(req.RemoteAddr)
+		target := targets[rand.Int()%len(targets)]
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
+	}
+	return &httputil.ReverseProxy{Director: director}
 }
 
 func toUrls(upstreams []string) []*url.URL {
@@ -52,17 +65,4 @@ func singleJoiningSlash(a, b string) string {
 		return a + "/" + b
 	}
 	return a + b
-}
-
-// NewMultipleHostReverseProxy creates a reverse proxy that will randomly
-// select a host from the passed `targets`
-func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
-	director := func(req *http.Request) {
-		fmt.Println(req.RemoteAddr)
-		target := targets[rand.Int()%len(targets)]
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
-	}
-	return &httputil.ReverseProxy{Director: director}
 }
