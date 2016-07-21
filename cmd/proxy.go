@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"net/http/httputil"
@@ -19,7 +19,7 @@ var proxyCmd = &cobra.Command{
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
 		targets := toUrls(upstreams)
-		fmt.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
+		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
 		proxy := NewMultipleHostReverseProxy(targets)
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
@@ -34,13 +34,18 @@ func init() {
 // select a host from the passed `targets`
 func NewMultipleHostReverseProxy(targets []*url.URL) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
-		fmt.Println(req.RemoteAddr)
-		target := targets[rand.Int()%len(targets)]
+		log.Println(req.RemoteAddr)
+		target := LoadBalance(targets)
 		req.URL.Scheme = target.Scheme
 		req.URL.Host = target.Host
 		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
 	}
 	return &httputil.ReverseProxy{Director: director}
+}
+
+// LoadBalance defines balancing logic
+func LoadBalance(targets []*url.URL) *url.URL {
+	return targets[rand.Int()%len(targets)]
 }
 
 func toUrls(upstreams []string) []*url.URL {

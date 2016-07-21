@@ -1,21 +1,22 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
+	"log"
 	"net/http"
 	"strconv"
-	"fmt"
+
+	"github.com/spf13/cobra"
 )
 
 var httpservCmd = &cobra.Command{
 	Use:   "httpserv",
 	Short: "Simple HTTP server for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("HTTP server is listening on port %d\n", port)
+		log.Printf("HTTP server is listening on port %d\n", port)
 		http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-			println("--->", port, req.URL.String())
+			log.Println("--->", port, req.URL.String())
 		})
-		http.ListenAndServe(":" + strconv.Itoa(port), nil)
+		http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	},
 }
 
