@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -50,25 +51,23 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var target *url.URL
-		var targetHost []byte
 		db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("IpAddresses"))
-			targetHost = b.Get([]byte(ip))
+			json.Unmarshal(b.Get([]byte(ip)), &target)
 			return nil
 		})
 
-		if targetHost != nil {
-			target = &url.URL{
-				Scheme: "http",
-				Host:   string(targetHost),
-			}
+		if target != nil {
 			log.Printf("Upstream [%v] for [%s] is found in cache\n", target, ip)
 		} else {
 			target = LoadBalance(targets)
 			db.Update(func(tx *bolt.Tx) error {
 				b := tx.Bucket([]byte("IpAddresses"))
-				err := b.Put([]byte(ip), []byte(target.Host))
-				return err
+				encoded, err := json.Marshal(target)
+				if err != nil {
+					return err
+				}
+				return b.Put([]byte(ip), encoded)
 			})
 			log.Printf("Upstream [%v] for [%s] is cached", target, ip)
 		}
