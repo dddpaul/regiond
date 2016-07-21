@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -10,7 +11,7 @@ import (
 var cfgFile string
 var port int
 
-// This represents the base command when called without any subcommands
+// RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "fedpa",
 	Short: "HTTP tools for Smile Private Area (fedpa)",
