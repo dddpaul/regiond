@@ -14,7 +14,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/spf13/cobra"
 
-	"smilenet.ru/fedpa/utils"
+	"smilenet.ru/fedpa/bucket"
 )
 
 // Upstream represents upstream target with timestamp
@@ -29,9 +29,12 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
-		db := utils.InitDb()
+		db, err := bolt.Open("fedpa.db", 0600, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
 		defer db.Close()
-		utils.CreateBucket(db)
+		bucket.Create(db)
 		targets := toUrls(upstreams)
 		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
 		proxy := NewMultipleHostReverseProxy(db, targets)
@@ -51,7 +54,7 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
-		if byt := utils.GetFromBucket(db, ip); byt != nil {
+		if byt := bucket.Get(db, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
 				log.Printf("Error: %v", err)
 			}
@@ -66,7 +69,7 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 			if err != nil {
 				log.Printf("Error: %v", err)
 			}
-			utils.PutToBucket(db, ip, encoded)
+			bucket.Put(db, ip, encoded)
 			log.Printf("Upstream [%v] with timestamp [%v] for [%s] is cached",
 				upstream.Target.Host, upstream.Timestamp, ip)
 		}
