@@ -14,7 +14,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/spf13/cobra"
 
-	"smilenet.ru/fedpa/bucket"
+	"smilenet.ru/fedpa/cache"
 )
 
 // Upstream represents upstream target with timestamp
@@ -24,6 +24,7 @@ type Upstream struct {
 }
 
 var upstreams []string
+var ttl int64
 
 var proxyCmd = &cobra.Command{
 	Use:   "proxy",
@@ -34,7 +35,7 @@ var proxyCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		defer db.Close()
-		bucket.Create(db)
+		cache.Create(db)
 		targets := toUrls(upstreams)
 		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
 		proxy := NewMultipleHostReverseProxy(db, targets)
@@ -44,8 +45,8 @@ var proxyCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(proxyCmd)
-	proxyCmd.PersistentFlags().StringSliceVarP(&upstreams, "upstreams", "u", nil,
-		"Upstream list in form of 'host1:port1,host2:port2'")
+	proxyCmd.PersistentFlags().StringSliceVarP(&upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
+	proxyCmd.PersistentFlags().Int64VarP(&ttl, "ttl", "t", 3600, "Cache record time-to-live in seconds")
 }
 
 // NewMultipleHostReverseProxy creates a reverse proxy that will randomly
@@ -54,13 +55,23 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
-		if byt := bucket.Get(db, ip); byt != nil {
+		newUpstream := false
+		if byt := cache.Get(db, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
 				log.Printf("Error: %v", err)
 			}
-			log.Printf("Upstream [%v] with timestamp [%v] for [%s] is found in cache\n",
-				upstream.Target.Host, upstream.Timestamp, ip)
+			if upstream.Timestamp.Add(time.Duration(ttl) * time.Second).After(time.Now()) {
+				log.Printf("Upstream [%v] with timestamp [%v] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp, ip)
+			} else {
+				// Upstream record in cache is too old
+				cache.Del(db, ip)
+				newUpstream = true
+			}
 		} else {
+			// No upstream record in cache
+			newUpstream = true
+		}
+		if newUpstream {
 			upstream = &Upstream{
 				Target:    LoadBalance(targets),
 				Timestamp: time.Now(),
@@ -69,9 +80,8 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 			if err != nil {
 				log.Printf("Error: %v", err)
 			}
-			bucket.Put(db, ip, encoded)
-			log.Printf("Upstream [%v] with timestamp [%v] for [%s] is cached",
-				upstream.Target.Host, upstream.Timestamp, ip)
+			cache.Put(db, ip, encoded)
+			log.Printf("Upstream [%v] with timestamp [%v] for [%s] is cached", upstream.Target.Host, upstream.Timestamp, ip)
 		}
 
 		req.URL.Scheme = upstream.Target.Scheme
@@ -86,6 +96,7 @@ func LoadBalance(targets []*url.URL) url.URL {
 	return *targets[rand.Int()%len(targets)]
 }
 
+// Converts list of upstreams to the list of URLs
 func toUrls(upstreams []string) []*url.URL {
 	var urls []*url.URL
 	for _, upstream := range upstreams {
@@ -97,7 +108,7 @@ func toUrls(upstreams []string) []*url.URL {
 	return urls
 }
 
-// Copy from net/http/httputil/reverseproxy.go
+// Taken from net/http/httputil/reverseproxy.go
 func singleJoiningSlash(a, b string) string {
 	aslash := strings.HasSuffix(a, "/")
 	bslash := strings.HasPrefix(b, "/")
