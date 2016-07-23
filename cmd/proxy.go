@@ -23,6 +23,8 @@ type Upstream struct {
 	Timestamp time.Time `json:"time"`
 }
 
+const df = "2006-01-02 15:04:05 MST"
+
 var upstreams []string
 var ttl int64
 
@@ -37,7 +39,7 @@ var proxyCmd = &cobra.Command{
 		defer db.Close()
 		cache.Create(db)
 		targets := toUrls(upstreams)
-		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n", port, targets)
+		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n with TTL %d seconds", port, targets, ttl)
 		proxy := NewMultipleHostReverseProxy(db, targets)
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
@@ -61,7 +63,7 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 				log.Printf("Error: %v", err)
 			}
 			if upstream.Timestamp.Add(time.Duration(ttl) * time.Second).After(time.Now()) {
-				log.Printf("Upstream [%v] with timestamp [%v] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp, ip)
+				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
 				cache.Del(db, ip)
@@ -81,7 +83,7 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 				log.Printf("Error: %v", err)
 			}
 			cache.Put(db, ip, encoded)
-			log.Printf("Upstream [%v] with timestamp [%v] for [%s] is cached", upstream.Target.Host, upstream.Timestamp, ip)
+			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 		}
 
 		req.URL.Scheme = upstream.Target.Scheme
