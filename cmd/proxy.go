@@ -23,10 +23,13 @@ type Upstream struct {
 	Timestamp time.Time `json:"time"`
 }
 
-const df = "2006-01-02 15:04:05 MST"
+// Upstreams holds list of strings in form of 'host1:port1'
+var Upstreams []string
 
-var upstreams []string
-var ttl int64
+// TTL holds cache record time-to-live in nanoseconds
+var TTL int64
+
+const df = "2006-01-02 15:04:05 MST"
 
 var proxyCmd = &cobra.Command{
 	Use:   "proxy",
@@ -37,23 +40,22 @@ var proxyCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		defer db.Close()
-		cache.Create(db)
-		targets := toUrls(upstreams)
-		log.Printf("Reverse proxy is listening on port %d for upstreams %v\n with TTL %d seconds", port, targets, ttl)
-		proxy := NewMultipleHostReverseProxy(db, targets)
+		proxy := NewMultipleHostReverseProxy(db)
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(proxyCmd)
-	proxyCmd.PersistentFlags().StringSliceVarP(&upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
-	proxyCmd.PersistentFlags().Int64VarP(&ttl, "ttl", "t", 3600, "Cache record time-to-live in seconds")
+	proxyCmd.PersistentFlags().StringSliceVarP(&Upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
+	proxyCmd.PersistentFlags().Int64VarP(&TTL, "ttl", "t", 3600, "Cache record time-to-live in seconds")
 }
 
 // NewMultipleHostReverseProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.ReverseProxy {
+func NewMultipleHostReverseProxy(db *bolt.DB) *httputil.ReverseProxy {
+	cache.Create(db)
+	targets := toUrls(Upstreams)
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
@@ -62,7 +64,7 @@ func NewMultipleHostReverseProxy(db *bolt.DB, targets []*url.URL) *httputil.Reve
 			if err := json.Unmarshal(byt, &upstream); err != nil {
 				log.Printf("Error: %v", err)
 			}
-			if upstream.Timestamp.Add(time.Duration(ttl) * time.Second).After(time.Now()) {
+			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
 				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
