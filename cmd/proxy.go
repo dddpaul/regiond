@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/sebest/xff"
 	"github.com/spf13/cobra"
 
 	"smilenet.ru/fedpa/cache"
@@ -40,7 +41,7 @@ var proxyCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		defer db.Close()
-		proxy := NewMultipleHostReverseProxy(db)
+		proxy := NewXffProxy(NewMultipleHostProxy(db))
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -51,12 +52,22 @@ func init() {
 	proxyCmd.PersistentFlags().Int64VarP(&TTL, "ttl", "t", 3600, "Cache record time-to-live in seconds")
 }
 
-// NewMultipleHostReverseProxy creates a reverse proxy that will randomly
+// NewXffProxy wraps reverse proxy with X-Forwarded-For handler
+func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
+	xffmw, err := xff.Default()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return xffmw.Handler(p)
+}
+
+// NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostReverseProxy(db *bolt.DB) *httputil.ReverseProxy {
+func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 	cache.Create(db)
 	targets := toUrls(Upstreams)
 	director := func(req *http.Request) {
+		log.Println(req.RemoteAddr)
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
 		newUpstream := false
