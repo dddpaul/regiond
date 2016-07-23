@@ -67,7 +67,6 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 	cache.Create(db)
 	targets := toUrls(Upstreams)
 	director := func(req *http.Request) {
-		log.Println(req.RemoteAddr)
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
 		newUpstream := false
@@ -103,6 +102,7 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 		req.URL.Host = upstream.Target.Host
 		req.URL.Path = singleJoiningSlash(upstream.Target.Path, req.URL.Path)
 	}
+	log.Printf("Reverse proxy is listening on port %d for upstreams %v with TTL %d seconds", port, targets, TTL)
 	return &httputil.ReverseProxy{Director: director}
 }
 

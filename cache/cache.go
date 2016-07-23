@@ -3,6 +3,8 @@ package cache
 import (
 	"fmt"
 
+	"bytes"
+
 	"github.com/boltdb/bolt"
 )
 
@@ -42,4 +44,18 @@ func Del(db *bolt.DB, key string) {
 		b := tx.Bucket([]byte("Upstreams"))
 		return b.Delete([]byte(key))
 	})
+}
+
+// PrefixScan returns records which keys are matched by prefix
+func PrefixScan(db *bolt.DB, prefix string) map[string]string {
+	m := make(map[string]string)
+	db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket([]byte("Upstreams")).Cursor()
+		byt := []byte(prefix)
+		for k, v := c.Seek(byt); bytes.HasPrefix(k, byt); k, v = c.Next() {
+			m[string(k)] = string(v)
+		}
+		return nil
+	})
+	return m
 }

@@ -7,6 +7,8 @@ VERSION=$(shell cat VERSION)
 all: build
 
 build:
+	@go test
+	@go test smilenet.ru/fedpa/cmd
 	@mkdir -p root/bin
 	@CGO_ENABLED=0 go build -o root/bin/fedpa
 	@docker build --tag=${IMAGE} .
