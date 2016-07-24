@@ -32,17 +32,23 @@ var Upstreams []string
 // TTL holds cache record time-to-live in nanoseconds
 var TTL int64
 
+// BoltFn is Bolt filename (local caching key-value storage)
+var BoltFn string
+
+// OraConnStr is Oracle connection string in form of 'user/pass@host/sid'
+var OraConnStr string
+
 const df = "2006-01-02 15:04:05 MST"
 
 var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
-		blt, err := bolt.Open("fedpa.db", 0600, nil)
+		blt, err := bolt.Open(BoltFn, 0600, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
-		ora, err := sql.Open("oci8", "system/oracle@localhost/xe")
+		ora, err := sql.Open("oci8", OraConnStr)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -59,6 +65,8 @@ func init() {
 	RootCmd.AddCommand(proxyCmd)
 	proxyCmd.PersistentFlags().StringSliceVarP(&Upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
 	proxyCmd.PersistentFlags().Int64VarP(&TTL, "ttl", "t", 3600, "Cache record time-to-live in seconds")
+	proxyCmd.PersistentFlags().StringVarP(&OraConnStr, "oracle", "o", "system/oracle@localhost/xe", "Oracle connection string in form of 'user/pass@host/sid'")
+	proxyCmd.PersistentFlags().StringVarP(&BoltFn, "bolt", "b", "fedpa.db", "Bolt caching key-value storage filename")
 }
 
 // NewXffProxy wraps reverse proxy with X-Forwarded-For handler
