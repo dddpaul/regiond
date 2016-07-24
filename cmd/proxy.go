@@ -139,23 +139,22 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
 		}
 	}()
 
-	region := selectRegion(ip, ora)
-	return targets[region]
-}
-
-// Returns offset for upstream list based on region code
-func selectRegion(ip string, ora *sql.DB) int {
 	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
 	defer rows.Close()
 	if err != nil {
 		log.Printf("Error: %v\n", err)
-		return 0 // Use first upstream on error
+		return targets[0]
 	}
 	var region int
 	for rows.Next() {
 		rows.Scan(&region)
 	}
-	return region - 1
+
+	if region == 0 {
+		return targets[0]
+	}
+
+	return targets[region-1]
 }
 
 // Converts list of upstreams to the list of URLs
