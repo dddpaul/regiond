@@ -126,10 +126,10 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
 	}
 
 	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
+	defer rows.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var region int
 	for rows.Next() {
 		rows.Scan(&region)
