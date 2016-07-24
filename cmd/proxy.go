@@ -133,6 +133,7 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
 	}
 
 	// Recover from Oracle driver panic when database is unavailable
+	// TODO: Reconnect on ORA-03114: not connected to ORACLE
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Recovered from %v\n", r)
@@ -141,15 +142,19 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
 
 	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
 	defer rows.Close()
+
+	// Use first upstream on error or panic
 	if err != nil {
 		log.Printf("Error: %v\n", err)
 		return targets[0]
 	}
+
 	var region int
 	for rows.Next() {
 		rows.Scan(&region)
 	}
 
+	// Use first upstream when no record is found
 	if region == 0 {
 		return targets[0]
 	}
