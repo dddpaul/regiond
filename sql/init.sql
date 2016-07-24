@@ -3,6 +3,8 @@ CREATE TABLE ip_to_region (
   ,region    number(10) NOT NULL
 );
 
+TRUNCATE TABLE ip_to_region;
+
 INSERT INTO ip_to_region (ip, region) VALUES ('127.0.0.1', 1);
 INSERT INTO ip_to_region (ip, region) VALUES ('10.0.0.1', 1);
 INSERT INTO ip_to_region (ip, region) VALUES ('10.0.0.2', 1);

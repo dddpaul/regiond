@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"math/rand"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	_ "github.com/mattn/go-oci8" // Oracle driver
 	"github.com/sebest/xff"
 	"github.com/spf13/cobra"
 
@@ -36,12 +38,19 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := bolt.Open("fedpa.db", 0600, nil)
+		blt, err := bolt.Open("fedpa.db", 0600, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer db.Close()
-		proxy := NewXffProxy(NewMultipleHostProxy(db))
+		ora, err := sql.Open("oci8", "system/oracle@localhost/xe")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			blt.Close()
+			ora.Close()
+		}()
+		proxy := NewXffProxy(NewMultipleHostProxy(blt, ora))
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -63,14 +72,14 @@ func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
-	cache.Create(db)
+func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
+	cache.Create(blt)
 	targets := toUrls(Upstreams)
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
 		newUpstream := false
-		if byt := cache.Get(db, ip); byt != nil {
+		if byt := cache.Get(blt, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
 				log.Printf("Error: %v", err)
 			}
@@ -78,7 +87,7 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
-				cache.Del(db, ip)
+				cache.Del(blt, ip)
 				newUpstream = true
 			}
 		} else {
@@ -86,15 +95,17 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 			newUpstream = true
 		}
 		if newUpstream {
+			// TODO: Handle error
+			target, _ := LoadBalance(targets, ip, ora)
 			upstream = &Upstream{
-				Target:    LoadBalance(targets),
+				Target:    *target,
 				Timestamp: time.Now(),
 			}
 			encoded, err := json.Marshal(upstream)
 			if err != nil {
 				log.Printf("Error: %v", err)
 			}
-			cache.Put(db, ip, encoded)
+			cache.Put(blt, ip, encoded)
 			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 		}
 
@@ -106,9 +117,29 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{Director: director}
 }
 
-// LoadBalance defines balancing logic
-func LoadBalance(targets []*url.URL) url.URL {
-	return *targets[rand.Int()%len(targets)]
+// LoadBalance defines balancing logic.
+// Returns random target if Oracle database is not used.
+// Use target based on value from Oracle table otherwise.
+func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
+	if ora == nil {
+		return targets[rand.Int()%len(targets)], nil
+	}
+
+	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var region int
+	for rows.Next() {
+		rows.Scan(&region)
+	}
+
+	if region == 0 {
+		return targets[0], nil
+	}
+
+	return targets[region-1], nil
 }
 
 // Converts list of upstreams to the list of URLs

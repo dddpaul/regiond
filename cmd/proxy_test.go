@@ -28,15 +28,15 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	TTL = 1
 
 	// Setup upstreams cache
-	db, err := bolt.Open("/tmp/fedpa.db", 0600, nil)
+	blt, err := bolt.Open("/tmp/fedpa.db", 0600, nil)
 	assert.Nil(t, err)
 	defer func() {
-		db.Close()
+		blt.Close()
 		os.Remove("/tmp/fedpa.db")
 	}()
 
 	// Setup proxy
-	proxy := NewXffProxy(NewMultipleHostProxy(db))
+	proxy := NewXffProxy(NewMultipleHostProxy(blt, nil))
 
 	// Send bunch of HTTP requests, cache must be filled
 	for i := 1; i <= REQUESTS; i++ {
@@ -45,7 +45,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 		proxy.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 	}
-	cache1 := cache.PrefixScan(db, "20.0.0")
+	cache1 := cache.PrefixScan(blt, "20.0.0")
 	assert.Equal(t, REQUESTS, len(cache1))
 
 	// Send bunch of same HTTP requests, cache must stay the same
@@ -55,7 +55,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 		proxy.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 	}
-	cache2 := cache.PrefixScan(db, "20.0.0")
+	cache2 := cache.PrefixScan(blt, "20.0.0")
 	assert.Equal(t, cache1, cache2)
 
 	// Wait until TTL is expired
@@ -68,7 +68,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 		proxy.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 	}
-	cache3 := cache.PrefixScan(db, "20.0.0")
+	cache3 := cache.PrefixScan(blt, "20.0.0")
 	assert.NotEqual(t, cache1, cache3)
 
 	// Send bunch of same HTTP requests, cache must stay the same
@@ -78,7 +78,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 		proxy.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 	}
-	cache4 := cache.PrefixScan(db, "20.0.0")
+	cache4 := cache.PrefixScan(blt, "20.0.0")
 	assert.Equal(t, cache3, cache4)
 }
 
