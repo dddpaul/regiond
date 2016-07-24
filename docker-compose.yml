@@ -5,11 +5,13 @@ services:
   server1:
 #    image: docker.infoline.ru:5000/smile/fedpa-tools:1.1
     image: smile/fedpa-tools:1.1
+    ports: ["9091:80"]
     command: ["httpserv", "-p", "80"]
 
   server2:
 #    image: docker.infoline.ru:5000/smile/fedpa-tools:1.1
     image: smile/fedpa-tools:1.1
+    ports: ["9091:80"]
     command: ["httpserv", "-p", "80"]
 
   proxy:

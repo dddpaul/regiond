@@ -4,5 +4,7 @@
 *.iws
 *.iml
 
+fedpa
 root
 *.db
+*.pprof

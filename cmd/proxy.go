@@ -75,7 +75,7 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 				log.Printf("Error: %v", err)
 			}
 			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
-				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+				// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
 				cache.Del(db, ip)
@@ -95,7 +95,7 @@ func NewMultipleHostProxy(db *bolt.DB) *httputil.ReverseProxy {
 				log.Printf("Error: %v", err)
 			}
 			cache.Put(db, ip, encoded)
-			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 		}
 
 		req.URL.Scheme = upstream.Target.Scheme
