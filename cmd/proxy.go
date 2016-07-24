@@ -133,6 +133,13 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
 		return targets[rand.Int()%len(targets)], nil
 	}
 
+	// Recover from Oracle driver panic when database is unavailable
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from %v\n", r)
+		}
+	}()
+
 	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
 	defer rows.Close()
 	if err != nil {
