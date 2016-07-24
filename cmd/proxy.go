@@ -89,7 +89,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 		newUpstream := false
 		if byt := cache.Get(blt, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
-				log.Printf("Error: %v", err)
+				log.Printf("Error: %v\n", err)
 			}
 			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
 				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
@@ -103,15 +103,14 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 			newUpstream = true
 		}
 		if newUpstream {
-			// TODO: Handle error
-			target, _ := LoadBalance(targets, ip, ora)
+			target := LoadBalance(targets, ip, ora)
 			upstream = &Upstream{
 				Target:    *target,
 				Timestamp: time.Now(),
 			}
 			encoded, err := json.Marshal(upstream)
 			if err != nil {
-				log.Printf("Error: %v", err)
+				log.Printf("Error: %v\n", err)
 			}
 			cache.Put(blt, ip, encoded)
 			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
@@ -128,9 +127,9 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 // LoadBalance defines balancing logic.
 // Returns random target if Oracle database is not used.
 // Use target based on value from Oracle table otherwise.
-func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
+func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
 	if ora == nil {
-		return targets[rand.Int()%len(targets)], nil
+		return targets[rand.Int()%len(targets)]
 	}
 
 	// Recover from Oracle driver panic when database is unavailable
@@ -143,7 +142,8 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
 	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
 	defer rows.Close()
 	if err != nil {
-		return nil, err
+		log.Printf("Error: %v\n", err)
+		return targets[0]
 	}
 	var region int
 	for rows.Next() {
@@ -151,10 +151,10 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) (*url.URL, error) {
 	}
 
 	if region == 0 {
-		return targets[0], nil
+		return targets[0]
 	}
 
-	return targets[region-1], nil
+	return targets[region-1]
 }
 
 // Converts list of upstreams to the list of URLs
