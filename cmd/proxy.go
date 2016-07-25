@@ -83,6 +83,18 @@ func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
 func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 	cache.Create(blt)
 	targets := toUrls(Upstreams)
+
+	// Prepare SELECT query
+	var stmt *sql.Stmt
+	if ora != nil {
+		var err error
+		stmt, err = ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer stmt.Close()
+	}
+
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 		var upstream *Upstream
@@ -103,7 +115,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 			newUpstream = true
 		}
 		if newUpstream {
-			target := LoadBalance(targets, ip, ora)
+			target := LoadBalance(targets, ip, stmt)
 			upstream = &Upstream{
 				Target:    *target,
 				Timestamp: time.Now(),
@@ -120,6 +132,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 		req.URL.Host = upstream.Target.Host
 		req.URL.Path = singleJoiningSlash(upstream.Target.Path, req.URL.Path)
 	}
+
 	log.Printf("Reverse proxy is listening on port %d for upstreams %v with TTL %d seconds", port, targets, TTL)
 	return &httputil.ReverseProxy{Director: director}
 }
@@ -127,8 +140,8 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 // LoadBalance defines balancing logic.
 // Returns random target if Oracle database is not used.
 // Use target based on value from Oracle table otherwise.
-func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
-	if ora == nil {
+func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
+	if stmt == nil {
 		return targets[rand.Int()%len(targets)]
 	}
 
@@ -140,7 +153,7 @@ func LoadBalance(targets []*url.URL, ip string, ora *sql.DB) *url.URL {
 		}
 	}()
 
-	rows, err := ora.Query("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1", ip)
+	rows, err := stmt.Query(ip)
 	defer rows.Close()
 
 	// Use first upstream on error or panic
