@@ -37,7 +37,11 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	}()
 
 	// Setup proxy
-	proxy := cmd.NewXffProxy(cmd.NewMultipleHostProxy(blt, nil))
+	env := &cmd.Env{
+		Blt: blt,
+		Ora: nil,
+	}
+	proxy := cmd.NewXffProxy(cmd.NewMultipleHostProxy(env))
 
 	// Send bunch of HTTP requests, cache must be filled
 	for i := 1; i <= REQUESTS; i++ {

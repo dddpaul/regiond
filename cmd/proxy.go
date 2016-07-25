@@ -20,6 +20,12 @@ import (
 	"smilenet.ru/fedpa/cache"
 )
 
+// Env holds datasources and other environment
+type Env struct {
+	Blt *bolt.DB
+	Ora *sql.DB
+}
+
 // Upstream represents upstream target with timestamp
 type Upstream struct {
 	Target    url.URL   `json:"target"`
@@ -40,6 +46,8 @@ var OraConnStr string
 
 const df = "2006-01-02 15:04:05 MST"
 
+var env *Env
+
 var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
@@ -56,7 +64,11 @@ var proxyCmd = &cobra.Command{
 			blt.Close()
 			ora.Close()
 		}()
-		proxy := NewXffProxy(NewMultipleHostProxy(blt, ora))
+		env = &Env{
+			Blt: blt,
+			Ora: ora,
+		}
+		proxy := NewXffProxy(NewMultipleHostProxy(env))
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -80,8 +92,8 @@ func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
-	cache.Create(blt)
+func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
+	cache.Create(env.Blt)
 	targets := toUrls(Upstreams)
 
 	director := func(req *http.Request) {
@@ -90,8 +102,8 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 		// Prepare statement here to be able to close it by defer in case of database unavailability
 		var stmt *sql.Stmt
 		var err error
-		if ora != nil {
-			stmt, err = ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+		if env.Ora != nil {
+			stmt, err = env.Ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
 			if err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
@@ -108,7 +120,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 
 		var upstream *Upstream
 		newUpstream := false
-		if byt := cache.Get(blt, ip); byt != nil {
+		if byt := cache.Get(env.Blt, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
@@ -116,7 +128,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 				// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
-				cache.Del(blt, ip)
+				cache.Del(env.Blt, ip)
 				newUpstream = true
 			}
 		} else {
@@ -133,7 +145,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 			if err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
-			cache.Put(blt, ip, encoded)
+			cache.Put(env.Blt, ip, encoded)
 			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 		}
 
