@@ -52,16 +52,11 @@ var proxyCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		stmt, err := ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
-		if err != nil {
-			log.Fatal(err)
-		}
 		defer func() {
 			blt.Close()
 			ora.Close()
-			stmt.Close()
 		}()
-		proxy := NewXffProxy(NewMultipleHostProxy(blt, stmt))
+		proxy := NewXffProxy(NewMultipleHostProxy(blt, ora))
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -85,12 +80,20 @@ func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
+func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 	cache.Create(blt)
 	targets := toUrls(Upstreams)
 
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
+
+		// Prepare statement here to be able to close it by defer in case of database unavailability
+		stmt, err := ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+		if err != nil {
+			log.Printf("[%s] - Error: %v\n", ip, err)
+		}
+		defer stmt.Close()
+
 		var upstream *Upstream
 		newUpstream := false
 		if byt := cache.Get(blt, ip); byt != nil {
@@ -108,10 +111,10 @@ func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
 			// No upstream record in cache
 			newUpstream = true
 		}
+
 		if newUpstream {
-			target := LoadBalance(targets, ip, stmt)
 			upstream = &Upstream{
-				Target:    *target,
+				Target:    *LoadBalance(targets, ip, stmt),
 				Timestamp: time.Now(),
 			}
 			encoded, err := json.Marshal(upstream)
@@ -132,27 +135,18 @@ func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
 }
 
 // LoadBalance defines balancing logic.
-// Returns random target if Oracle database is not used.
-// Use target based on value from Oracle table otherwise.
+// Returns upstream based on value from Oracle table.
 func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
+	// Returns random upstrem if Oracle database is not used
 	if stmt == nil {
 		return targets[rand.Int()%len(targets)]
 	}
 
-	// Recover from Oracle driver panic when database is unavailable
-	// TODO: Reconnect on ORA-03114: not connected to ORACLE
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[%s] - Recovered from: %v\n", ip, r)
-		}
-	}()
-
 	var region int
 	err := stmt.QueryRow(ip).Scan(&region)
-
-	// Use first upstream on error or panic
 	if err != nil {
 		log.Printf("[%s] - Error: %v\n", ip, err)
+		// Use first upstream on error
 		return targets[0]
 	}
 
