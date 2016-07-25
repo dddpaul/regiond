@@ -52,11 +52,16 @@ var proxyCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+		stmt, err := ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+		if err != nil {
+			log.Fatal(err)
+		}
 		defer func() {
 			blt.Close()
 			ora.Close()
+			stmt.Close()
 		}()
-		proxy := NewXffProxy(NewMultipleHostProxy(blt, ora))
+		proxy := NewXffProxy(NewMultipleHostProxy(blt, stmt))
 		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
 	},
 }
@@ -80,20 +85,9 @@ func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
-func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
+func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
 	cache.Create(blt)
 	targets := toUrls(Upstreams)
-
-	// Prepare SELECT query
-	var stmt *sql.Stmt
-	if ora != nil {
-		var err error
-		stmt, err = ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer stmt.Close()
-	}
 
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
@@ -104,7 +98,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 				log.Printf("Error: %v\n", err)
 			}
 			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
-				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+				// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 			} else {
 				// Upstream record in cache is too old
 				cache.Del(blt, ip)
@@ -125,7 +119,7 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 				log.Printf("Error: %v\n", err)
 			}
 			cache.Put(blt, ip, encoded)
-			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
 		}
 
 		req.URL.Scheme = upstream.Target.Scheme

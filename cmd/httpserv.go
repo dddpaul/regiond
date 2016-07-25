@@ -14,7 +14,7 @@ var httpservCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Printf("HTTP server is listening on port %d\n", port)
 		http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-			log.Println("--->", req.RemoteAddr, req.URL.String())
+			// log.Println("--->", req.RemoteAddr, req.URL.String())
 		})
 		http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	},
