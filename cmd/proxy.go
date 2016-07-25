@@ -95,7 +95,15 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 			if err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
-			defer stmt.Close()
+			defer func() {
+				// Recover from panic caused by statement close when database is unavailable
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[%s] - Recovered from: %v\n", ip, r)
+					}
+				}()
+				stmt.Close()
+			}()
 		}
 
 		var upstream *Upstream
