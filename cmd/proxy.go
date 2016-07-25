@@ -95,7 +95,7 @@ func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
 		newUpstream := false
 		if byt := cache.Get(blt, ip); byt != nil {
 			if err := json.Unmarshal(byt, &upstream); err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
 			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
 				// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
@@ -116,7 +116,7 @@ func NewMultipleHostProxy(blt *bolt.DB, stmt *sql.Stmt) *httputil.ReverseProxy {
 			}
 			encoded, err := json.Marshal(upstream)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
 			cache.Put(blt, ip, encoded)
 			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
@@ -143,7 +143,7 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 	// TODO: Reconnect on ORA-03114: not connected to ORACLE
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered from %v\n", r)
+			log.Printf("[%s] - Recovered from: %v\n", ip, r)
 		}
 	}()
 
@@ -152,7 +152,7 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 
 	// Use first upstream on error or panic
 	if err != nil {
-		log.Printf("Error: %v for ip [%s]\n", err, ip)
+		log.Printf("[%s] - Error: %v\n", ip, err)
 		return targets[0]
 	}
 
