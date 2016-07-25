@@ -1,0 +1,11 @@
+# You should add the directory containing 'oci8.pc' to the PKG_CONFIG_PATH environment variable.
+# Or just copy 'oci8.pc' to /usr/lib/pkgconfig.
+prefixdir=/usr/lib/oracle/12.1/client64
+libdir=${prefixdir}/lib
+includedir=/usr/include/oracle/12.1/client64
+
+Name: OCI
+Description: Oracle database driver
+Version: 12.1
+Libs: -L${libdir} -lclntsh
+Cflags: -I${includedir}
