@@ -147,22 +147,12 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 		}
 	}()
 
-	rows, err := stmt.Query(ip)
-	defer rows.Close()
+	var region int
+	err := stmt.QueryRow(ip).Scan(&region)
 
 	// Use first upstream on error or panic
 	if err != nil {
-		log.Printf("Error: %v\n", err)
-		return targets[0]
-	}
-
-	var region int
-	for rows.Next() {
-		rows.Scan(&region)
-	}
-
-	// Use first upstream when no record is found
-	if region == 0 {
+		log.Printf("Error: %v for ip [%s]\n", err, ip)
 		return targets[0]
 	}
 
