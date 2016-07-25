@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"net/http"
@@ -12,6 +12,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/stretchr/testify/assert"
 	"smilenet.ru/fedpa/cache"
+	"smilenet.ru/fedpa/cmd"
 )
 
 const REQUESTS = 5
@@ -24,8 +25,8 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Set proxy parameters
-	Upstreams = []string{"localhost:9091", "localhost:9092"}
-	TTL = 1
+	cmd.Upstreams = []string{"localhost:9091", "localhost:9092"}
+	cmd.TTL = 1
 
 	// Setup upstreams cache
 	blt, err := bolt.Open("/tmp/fedpa.db", 0600, nil)
@@ -36,7 +37,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	}()
 
 	// Setup proxy
-	proxy := NewXffProxy(NewMultipleHostProxy(blt, nil))
+	proxy := cmd.NewXffProxy(cmd.NewMultipleHostProxy(blt, nil))
 
 	// Send bunch of HTTP requests, cache must be filled
 	for i := 1; i <= REQUESTS; i++ {
@@ -59,7 +60,7 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	assert.Equal(t, cache1, cache2)
 
 	// Wait until TTL is expired
-	time.Sleep(time.Duration(TTL) * time.Second)
+	time.Sleep(time.Duration(cmd.TTL) * time.Second)
 
 	// Send bunch of same HTTP requests, cache must be renewed
 	for i := 1; i <= REQUESTS; i++ {
