@@ -88,11 +88,15 @@ func NewMultipleHostProxy(blt *bolt.DB, ora *sql.DB) *httputil.ReverseProxy {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 
 		// Prepare statement here to be able to close it by defer in case of database unavailability
-		stmt, err := ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
-		if err != nil {
-			log.Printf("[%s] - Error: %v\n", ip, err)
+		var stmt *sql.Stmt
+		var err error
+		if ora != nil {
+			stmt, err = ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+			if err != nil {
+				log.Printf("[%s] - Error: %v\n", ip, err)
+			}
+			defer stmt.Close()
 		}
-		defer stmt.Close()
 
 		var upstream *Upstream
 		newUpstream := false
