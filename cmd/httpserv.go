@@ -14,7 +14,10 @@ var httpservCmd = &cobra.Command{
 	Use:   "httpserv",
 	Short: "Simple HTTP server for testing",
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Printf("HTTP server is listening on port %d\n", port)
+		if metricsPort > 0 {
+			go http.ListenAndServe(":"+strconv.Itoa(metricsPort), nil)
+			log.Printf("Metrics HTTP server is listening on port %d\n", metricsPort)
+		}
 		http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 			// log.Println("--->", req.RemoteAddr, req.URL.String())
 			name, err := os.Hostname()
@@ -23,6 +26,7 @@ var httpservCmd = &cobra.Command{
 			}
 			w.Write([]byte(fmt.Sprintf("Response from %s:%d", name, port)))
 		})
+		log.Printf("HTTP server is listening on port %d\n", port)
 		http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	},
 }

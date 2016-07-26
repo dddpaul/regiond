@@ -52,6 +52,10 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run reverse proxy server",
 	Run: func(cmd *cobra.Command, args []string) {
+		if metricsPort > 0 {
+			go http.ListenAndServe(":"+strconv.Itoa(metricsPort), nil)
+			log.Printf("Metrics HTTP server is listening on port %d\n", metricsPort)
+		}
 		blt, err := bolt.Open(BoltFn, 0600, nil)
 		if err != nil {
 			log.Fatal(err)
