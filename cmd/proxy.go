@@ -3,6 +3,7 @@ package cmd
 import (
 	"database/sql"
 	"encoding/json"
+	"expvar"
 	"log"
 	"math/rand"
 	"net/http"
@@ -32,50 +33,47 @@ type Upstream struct {
 	Timestamp time.Time `json:"time"`
 }
 
-// Upstreams holds list of strings in form of 'host1:port1'
-var Upstreams []string
-
-// TTL holds cache record time-to-live in nanoseconds
-var TTL int64
-
-// BoltFn is Bolt filename (local caching key-value storage)
-var BoltFn string
-
-// OraConnStr is Oracle connection string in form of 'user/pass@host/sid'
-var OraConnStr string
-
 const df = "2006-01-02 15:04:05 MST"
 
-var env *Env
-
-var proxyCmd = &cobra.Command{
-	Use:   "proxy",
-	Short: "Run reverse proxy server",
-	Run: func(cmd *cobra.Command, args []string) {
-		if metricsPort > 0 {
-			go http.ListenAndServe(":"+strconv.Itoa(metricsPort), nil)
-			log.Printf("Metrics HTTP server is listening on port %d\n", metricsPort)
-		}
-		blt, err := bolt.Open(BoltFn, 0600, nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-		ora, err := sql.Open("oci8", OraConnStr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			blt.Close()
-			ora.Close()
-		}()
-		env = &Env{
-			Blt: blt,
-			Ora: ora,
-		}
-		proxy := NewXffProxy(NewMultipleHostProxy(env))
-		http.ListenAndServe(":"+strconv.Itoa(port), proxy)
-	},
-}
+var (
+	// Upstreams holds list of strings in form of 'host1:port1'
+	Upstreams []string
+	// TTL holds cache record time-to-live in nanoseconds
+	TTL int64
+	// BoltFn is Bolt filename (local caching key-value storage)
+	BoltFn string
+	// OraConnStr is Oracle connection string in form of 'user/pass@host/sid'
+	OraConnStr   string
+	oraOpenConns = expvar.NewInt("oraOpenConns")
+	proxyCmd     = &cobra.Command{
+		Use:   "proxy",
+		Short: "Run reverse proxy server",
+		Run: func(cmd *cobra.Command, args []string) {
+			if metricsPort > 0 {
+				go http.ListenAndServe(":"+strconv.Itoa(metricsPort), nil)
+				log.Printf("Metrics HTTP server is listening on port %d\n", metricsPort)
+			}
+			blt, err := bolt.Open(BoltFn, 0600, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+			ora, err := sql.Open("oci8", OraConnStr)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer func() {
+				blt.Close()
+				ora.Close()
+			}()
+			env := &Env{
+				Blt: blt,
+				Ora: ora,
+			}
+			proxy := NewXffProxy(NewMultipleHostProxy(env))
+			http.ListenAndServe(":"+strconv.Itoa(port), proxy)
+		},
+	}
+)
 
 func init() {
 	RootCmd.AddCommand(proxyCmd)
@@ -120,6 +118,7 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 				}()
 				stmt.Close()
 			}()
+			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
 		}
 
 		var upstream *Upstream
