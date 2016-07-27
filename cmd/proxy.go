@@ -109,15 +109,10 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 			if err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
-			defer func() {
-				// Recover from panic caused by statement close when database is unavailable
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("[%s] - Recovered from: %v\n", ip, r)
-					}
-				}()
-				stmt.Close()
-			}()
+			if stmt != nil {
+				// May be nil when database is unavailable
+				defer stmt.Close()
+			}
 			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
 		}
 
