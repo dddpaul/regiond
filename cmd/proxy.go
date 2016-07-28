@@ -101,7 +101,8 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 
-		// Prepare statement here to be able to close it by defer in case of database unavailability
+		// Prepare statement here to be able to close it by defer in case of database unavailability.
+		// Do not move it below "if upstream == nil" because there will be now reconnections will be disabled.
 		var stmt *sql.Stmt
 		var err error
 		if env.Ora != nil {
@@ -116,25 +117,8 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
 		}
 
-		var upstream *Upstream
-		newUpstream := false
-		if byt := cache.Get(env.Blt, ip); byt != nil {
-			if err := json.Unmarshal(byt, &upstream); err != nil {
-				log.Printf("[%s] - Error: %v\n", ip, err)
-			}
-			if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
-				// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
-			} else {
-				// Upstream record in cache is too old
-				cache.Del(env.Blt, ip)
-				newUpstream = true
-			}
-		} else {
-			// No upstream record in cache
-			newUpstream = true
-		}
-
-		if newUpstream {
+		upstream := getUpstreamFromCache(ip, env)
+		if upstream == nil {
 			upstream = &Upstream{
 				Target:    *LoadBalance(targets, ip, stmt),
 				Timestamp: time.Now(),
@@ -173,6 +157,24 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 	}
 
 	return targets[region-1]
+}
+
+// Fetch upstream from cache. Return nil if upstream is not found or expired.
+func getUpstreamFromCache(ip string, env *Env) *Upstream {
+	var upstream *Upstream
+	if byt := cache.Get(env.Blt, ip); byt != nil {
+		if err := json.Unmarshal(byt, &upstream); err != nil {
+			log.Printf("[%s] - Error: %v\n", ip, err)
+		}
+		if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
+			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+		} else {
+			// Upstream record in cache is too old
+			cache.Del(env.Blt, ip)
+			upstream = nil
+		}
+	}
+	return upstream
 }
 
 // Converts list of upstreams to the list of URLs
