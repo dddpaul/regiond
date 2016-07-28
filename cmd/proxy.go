@@ -128,7 +128,7 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
 			cache.Put(env.Blt, ip, encoded)
-			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", u.Target.Host, u.Timestamp.Format(df), ip)
+			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", u.Target.Host, u.Timestamp.Format(df), ip)
 		}
 
 		req.URL.Scheme = u.Target.Scheme
