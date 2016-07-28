@@ -101,6 +101,21 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		ip := strings.Split(req.RemoteAddr, ":")[0]
 
+		// Prepare statement here to be able to close it by defer in case of database unavailability
+		var stmt *sql.Stmt
+		var err error
+		if env.Ora != nil {
+			stmt, err = env.Ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
+			if err != nil {
+				log.Printf("[%s] - Error: %v\n", ip, err)
+			}
+			if stmt != nil {
+				// May be nil when database is unavailable
+				defer stmt.Close()
+			}
+			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
+		}
+
 		var upstream *Upstream
 		newUpstream := false
 		if byt := cache.Get(env.Blt, ip); byt != nil {
@@ -120,25 +135,8 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 		}
 
 		if newUpstream {
-			// Use random upstream by default
-			target := targets[rand.Int()%len(targets)]
-			if env.Ora != nil {
-				// Prepare statement here to be able to close it by defer in case of database unavailability.
-				// If statement is prepared inside LoadBalance it's doesn't reconnect when database is available again.
-				stmt, err := env.Ora.Prepare("SELECT region FROM ip_to_region WHERE rownum = 1 AND ip = :1")
-				if err != nil {
-					log.Printf("[%s] - Error: %v\n", ip, err)
-				}
-				if stmt != nil {
-					// May be nil when database is unavailable
-					defer stmt.Close()
-					target = LoadBalance(targets, ip, stmt)
-				}
-				oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
-			}
-
 			upstream = &Upstream{
-				Target:    *target,
+				Target:    *LoadBalance(targets, ip, stmt),
 				Timestamp: time.Now(),
 			}
 			encoded, err := json.Marshal(upstream)
@@ -161,6 +159,11 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 // LoadBalance defines balancing logic.
 // Returns upstream based on value from Oracle table.
 func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
+	// Returns random upstrem if Oracle database is not used
+	if stmt == nil {
+		return targets[rand.Int()%len(targets)]
+	}
+
 	var region int
 	err := stmt.QueryRow(ip).Scan(&region)
 	if err != nil {
@@ -168,6 +171,7 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 		// Use first upstream on error
 		return targets[0]
 	}
+
 	return targets[region-1]
 }
 
