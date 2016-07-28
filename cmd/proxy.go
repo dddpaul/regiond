@@ -84,12 +84,12 @@ func init() {
 }
 
 // NewXffProxy wraps reverse proxy with X-Forwarded-For handler
-func NewXffProxy(p *httputil.ReverseProxy) http.Handler {
+func NewXffProxy(rp *httputil.ReverseProxy) http.Handler {
 	xffmw, err := xff.Default()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return xffmw.Handler(p)
+	return xffmw.Handler(rp)
 }
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
@@ -117,23 +117,23 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
 		}
 
-		upstream := getUpstreamFromCache(ip, env)
-		if upstream == nil {
-			upstream = &Upstream{
+		u := getUpstreamFromCache(ip, env)
+		if u == nil {
+			u = &Upstream{
 				Target:    *LoadBalance(targets, ip, stmt),
 				Timestamp: time.Now(),
 			}
-			encoded, err := json.Marshal(upstream)
+			encoded, err := json.Marshal(u)
 			if err != nil {
 				log.Printf("[%s] - Error: %v\n", ip, err)
 			}
 			cache.Put(env.Blt, ip, encoded)
-			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", u.Target.Host, u.Timestamp.Format(df), ip)
 		}
 
-		req.URL.Scheme = upstream.Target.Scheme
-		req.URL.Host = upstream.Target.Host
-		req.URL.Path = singleJoiningSlash(upstream.Target.Path, req.URL.Path)
+		req.URL.Scheme = u.Target.Scheme
+		req.URL.Host = u.Target.Host
+		req.URL.Path = singleJoiningSlash(u.Target.Path, req.URL.Path)
 	}
 
 	log.Printf("Reverse proxy is listening on port %d for upstreams %v with TTL %d seconds", port, targets, TTL)
@@ -143,7 +143,7 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 // LoadBalance defines balancing logic.
 // Returns upstream based on value from Oracle table.
 func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
-	// Returns random upstrem if Oracle database is not used
+	// Returns random upstream if statement is not prepared
 	if stmt == nil {
 		return targets[rand.Int()%len(targets)]
 	}
@@ -161,20 +161,20 @@ func LoadBalance(targets []*url.URL, ip string, stmt *sql.Stmt) *url.URL {
 
 // Fetch upstream from cache. Return nil if upstream is not found or expired.
 func getUpstreamFromCache(ip string, env *Env) *Upstream {
-	var upstream *Upstream
+	var u *Upstream
 	if byt := cache.Get(env.Blt, ip); byt != nil {
-		if err := json.Unmarshal(byt, &upstream); err != nil {
+		if err := json.Unmarshal(byt, &u); err != nil {
 			log.Printf("[%s] - Error: %v\n", ip, err)
 		}
-		if upstream.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
-			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", upstream.Target.Host, upstream.Timestamp.Format(df), ip)
+		if u.Timestamp.Add(time.Duration(TTL) * time.Second).After(time.Now()) {
+			// log.Printf("Upstream [%v] with timestamp [%s] for [%s] is found in cache\n", u.Target.Host, u.Timestamp.Format(df), ip)
 		} else {
 			// Upstream record in cache is too old
 			cache.Del(env.Blt, ip)
-			upstream = nil
+			u = nil
 		}
 	}
-	return upstream
+	return u
 }
 
 // Converts list of upstreams to the list of URLs
