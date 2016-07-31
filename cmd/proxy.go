@@ -84,12 +84,12 @@ func init() {
 }
 
 // NewXffProxy wraps reverse proxy with X-Forwarded-For handler
-func NewXffProxy(rp *httputil.ReverseProxy) http.Handler {
+func NewXffProxy(h http.Handler) http.Handler {
 	xffmw, err := xff.Default()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return xffmw.Handler(rp)
+	return xffmw.Handler(h)
 }
 
 // NewMultipleHostProxy creates a reverse proxy that will randomly
