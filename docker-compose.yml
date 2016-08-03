@@ -17,10 +17,9 @@ services:
     ports: ["1521:1521"]
     volumes: ["$GOPATH/src/smilenet.ru/fedpa/sql/:/docker-entrypoint-initdb.d/"]
 
-  # TODO: Uncomment after injecting Oracle Instant client into Alpine docker image
-  # proxy:
-  #   # image: docker.infoline.ru:5000/smile/fedpa-tools:1.2
-  #   image: smile/fedpa-tools
-  #   depends_on: ["server1", "server2", "oracle"]
-  #   ports: ["9090:80"]
-  #   command: ["proxy", "-p", "80", "-u", "server1:8080,server2:8080", "-t", "60"]
+  proxy:
+    # image: docker.infoline.ru:5000/smile/fedpa-tools:1.2
+    image: smile/fedpa-tools
+    depends_on: ["server1", "server2", "oracle"]
+    ports: ["9090:80"]
+    command: ["proxy", "-p", "80", "-u", "server1:8080,server2:8080", "-t", "60", "-o", "system/oracle@oracle/xe"]

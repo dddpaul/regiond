@@ -9,7 +9,7 @@ all: build
 build:
 	@go test
 	@mkdir -p root/bin
-	@CGO_ENABLED=0 go build -o root/bin/fedpa
+	@go build -o root/bin/fedpa
 	@docker build --tag=${IMAGE} .
 
 debug:
