@@ -12,6 +12,9 @@ build:
 	@CGO_ENABLED=0 go build -o root/bin/fedpa
 	@docker build --tag=${IMAGE} .
 
+debug:
+	@docker run -it --entrypoint=sh ${IMAGE}
+
 release: build
 	@docker build --tag=${IMAGE}:${VERSION} .
 
