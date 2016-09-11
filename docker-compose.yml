@@ -3,14 +3,14 @@ version: "2"
 services:
 
   server1:
-    # image: docker.infoline.ru:5000/smile/fedpa-tools:1.2
-    image: smile/fedpa-local:1.14.2
+    image: smile/fedpa-tools
     ports: ["9091:8080"]
+    command: ["httpserv", "-p", "8080"]
 
   server2:
-    # image: docker.infoline.ru:5000/smile/fedpa-tools:1.2
-    image: smile/fedpa-local:1.14.2.vc
+    image: smile/fedpa-tools
     ports: ["9092:8080"]
+    command: ["httpserv", "-p", "8080"]
 
   oracle:
     image: wnameless/oracle-xe-11g
@@ -18,7 +18,6 @@ services:
     volumes: ["$GOPATH/src/smilenet.ru/fedpa/sql/:/docker-entrypoint-initdb.d/"]
 
   proxy:
-    # image: docker.infoline.ru:5000/smile/fedpa-tools:1.2
     image: smile/fedpa-tools
     depends_on: ["server1", "server2", "oracle"]
     ports: ["9090:80"]
