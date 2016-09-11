@@ -20,5 +20,5 @@ services:
   proxy:
     image: smile/fedpa-tools
     depends_on: ["server1", "server2", "oracle"]
-    ports: ["9090:80"]
-    command: ["proxy", "-p", "80", "-u", "server1:8080,server2:8080", "-t", "60", "-o", "system/oracle@oracle/xe"]
+    ports: ["9090:80", "6060:6060"]
+    command: ["proxy", "-p", "80", "-u", "server1:8080,server2:8080", "-t", "60", "-o", "system/oracle@oracle/xe", "-m", "6060"]
