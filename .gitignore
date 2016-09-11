@@ -8,3 +8,4 @@ fedpa
 root
 *.db
 *.pprof
+vendor
