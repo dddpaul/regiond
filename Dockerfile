@@ -4,7 +4,7 @@ MAINTAINER Pavel Derendyaev <pderendyaev@smile-net.ru>
 ENV DEBIAN_FRONTEND noninteractive
 ENV INITRD No
 ENV LANG en_US.UTF-8
-ENV GOVERSION 1.6.3
+ENV GOVERSION 1.7.1
 ENV GOROOT /opt/go
 ENV GOPATH /root/.go
 ENV PATH $PATH:$GOROOT/bin:$GOPATH/bin
