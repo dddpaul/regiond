@@ -3,3 +3,6 @@ language: go
 go:
   - 1.7.1
   - tip
+
+before_install:
+  - export PKG_CONFIG="${HOME}/gopath/src/github.com/dddpaul/regiond"
