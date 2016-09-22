@@ -5,4 +5,4 @@ go:
   - tip
 
 before_install:
-  - export PKG_CONFIG="${HOME}/gopath/src/github.com/dddpaul/regiond"
+  - export PKG_CONFIG_PATH="${HOME}/gopath/src/github.com/dddpaul/regiond"
