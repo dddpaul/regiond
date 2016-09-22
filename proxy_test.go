@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/dddpaul/regiond/cache"
+	"github.com/dddpaul/regiond/cmd"
 	"github.com/stretchr/testify/assert"
-	"smilenet.ru/fedpa/cache"
-	"smilenet.ru/fedpa/cmd"
 )
 
 const REQUESTS = 5
@@ -29,11 +29,11 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	cmd.TTL = 1
 
 	// Setup upstreams cache
-	blt, err := bolt.Open("/tmp/fedpa.db", 0600, nil)
+	blt, err := bolt.Open("/tmp/regiond.db", 0600, nil)
 	assert.Nil(t, err)
 	defer func() {
 		blt.Close()
-		os.Remove("/tmp/fedpa.db")
+		os.Remove("/tmp/regiond.db")
 	}()
 
 	// Setup proxy

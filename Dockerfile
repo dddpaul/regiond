@@ -1,5 +1,5 @@
-FROM smile/ora:12.1.0.2.0-3
-MAINTAINER Pavel Derendyaev <pderendyaev@smile-net.ru>
+FROM dddpaul/oracleclient:12.1.0.2.0-1
+MAINTAINER Pavel Derendyaev <pderendyaev@gmail.com>
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV INITRD No
@@ -23,6 +23,6 @@ ADD root /
 ADD oci8.pc /usr/lib/pkgconfig/
 RUN go get github.com/mattn/go-oci8
 
-ENTRYPOINT ["/bin/fedpa"]
+ENTRYPOINT ["/bin/regiond"]
 CMD ["proxy", "-p", "80"]
 EXPOSE 80

@@ -14,11 +14,10 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/dddpaul/regiond/cache"
 	_ "github.com/mattn/go-oci8" // Oracle driver
 	"github.com/sebest/xff"
 	"github.com/spf13/cobra"
-
-	"smilenet.ru/fedpa/cache"
 )
 
 // Env holds datasources and other environment
@@ -80,7 +79,7 @@ func init() {
 	proxyCmd.PersistentFlags().StringSliceVarP(&Upstreams, "upstreams", "u", nil, "Upstream list in form of 'host1:port1,host2:port2'")
 	proxyCmd.PersistentFlags().Int64VarP(&TTL, "ttl", "t", 3600, "Cache record time-to-live in seconds")
 	proxyCmd.PersistentFlags().StringVarP(&OraConnStr, "oracle", "o", "system/oracle@localhost/xe", "Oracle connection string in form of 'user/pass@host/sid'")
-	proxyCmd.PersistentFlags().StringVarP(&BoltFn, "bolt", "b", "fedpa.db", "Bolt caching key-value storage filename")
+	proxyCmd.PersistentFlags().StringVarP(&BoltFn, "bolt", "b", "regiond.db", "Bolt caching key-value storage filename")
 }
 
 // NewXffProxy wraps reverse proxy with X-Forwarded-For handler

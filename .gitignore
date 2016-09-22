@@ -4,7 +4,7 @@
 *.iws
 *.iml
 
-fedpa
+regiond
 root
 *.db
 *.pprof

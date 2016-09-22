@@ -5,7 +5,7 @@ import (
 	_ "expvar"         // Export metrics
 	_ "net/http/pprof" // HTTP profiling
 
-	"smilenet.ru/fedpa/cmd"
+	"github.com/dddpaul/regiond/cmd"
 )
 
 func main() {
