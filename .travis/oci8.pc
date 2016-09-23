@@ -1,0 +1,11 @@
+# You should add the directory containing 'oci8.pc' to the PKG_CONFIG_PATH environment variable.
+# Or just copy 'oci8.pc' to /usr/lib/pkgconfig.
+prefixdir=/u01/app/oracle/product/11.2.0/xe
+libdir=${prefixdir}/lib
+includedir=${prefixdir}/rdbms/public
+
+Name: OCI
+Description: Oracle database driver
+Version: 11.2
+Libs: -L${libdir} -lclntsh
+Cflags: -I${includedir}
