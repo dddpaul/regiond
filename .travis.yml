@@ -15,4 +15,4 @@ sudo: required
 before_install:
   - .travis/oracle/download.sh
   - .travis/oracle/install.sh
-  - cp .travis/oci8.pc /usr/lib/pkgconfig
+  - sudo cp $HOME/gopath/src/github.com/dddpaul/regiond/.travis/oci8.pc /usr/lib/pkgconfig
