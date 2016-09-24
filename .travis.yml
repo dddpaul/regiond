@@ -21,3 +21,5 @@ before_install:
 before_script:
   # Makefile builds docker container and we don't need this in Travis CI
   - rm Makefile
+
+script: go test -v
