@@ -9,6 +9,7 @@ env:
     - ORACLE_FILE=oracle11g/xe/oracle-xe-11.2.0-1.0.x86_64.rpm.zip
     - ORACLE_HOME=/u01/app/oracle/product/11.2.0/xe
     - ORACLE_SID=XE
+    - LD_LIBRARY_PATH=$ORACLE_HOME/lib
 
 sudo: required
 
