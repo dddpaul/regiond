@@ -43,7 +43,6 @@ func TestProxyIsCachingUpstreams(t *testing.T) {
 	// Setup proxy
 	env := &cmd.Env{
 		Blt: blt,
-		Ora: nil,
 	}
 	proxy := cmd.NewXffProxy(cmd.NewMultipleHostProxy(env))
 
@@ -106,18 +105,19 @@ func TestProxyIsRequestingOracle(t *testing.T) {
 	go http.ListenAndServe(":9094", mux2)
 	time.Sleep(100 * time.Millisecond)
 
-	// Start Oracle server in Docker container
-	client, err := docker.NewClientFromEnv()
-	assert.Nil(t, err)
-	c := createOracleContainer(t, client)
-	err = client.StartContainer(c.ID, nil)
-	assert.Nil(t, err)
-	defer removeOracleContainer(t, client, c)
-	time.Sleep(60 * time.Second)
+	// Start Oracle server in Docker container if it is not running
+	if err := waitReachable("localhost:1521", 1*time.Second); err != nil {
+		client, err := docker.NewClientFromEnv()
+		assert.Nil(t, err)
+		c := createOracleContainer(t, client)
+		err = client.StartContainer(c.ID, nil)
+		assert.Nil(t, err)
+		defer removeOracleContainer(t, client, c)
+		time.Sleep(60 * time.Second)
+	}
 
 	// Set proxy parameters
 	cmd.Upstreams = []string{"localhost:9093", "localhost:9094"}
-	cmd.TTL = 1
 
 	// Setup Oracle database client
 	ora, err := sql.Open("oci8", "system/oracle@localhost/xe")
@@ -125,7 +125,6 @@ func TestProxyIsRequestingOracle(t *testing.T) {
 
 	// Setup proxy
 	env := &cmd.Env{
-		Blt: nil,
 		Ora: ora,
 	}
 	proxy := cmd.NewXffProxy(cmd.NewMultipleHostProxy(env))
