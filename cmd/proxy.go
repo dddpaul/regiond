@@ -94,7 +94,9 @@ func NewXffProxy(h http.Handler) http.Handler {
 // NewMultipleHostProxy creates a reverse proxy that will randomly
 // select a host from the passed `targets`
 func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
-	cache.Create(env.Blt)
+	if env.Blt != nil {
+		cache.Create(env.Blt)
+	}
 	targets := toUrls(Upstreams)
 
 	director := func(req *http.Request) {
@@ -116,18 +118,23 @@ func NewMultipleHostProxy(env *Env) *httputil.ReverseProxy {
 			oraOpenConns.Set(int64(env.Ora.Stats().OpenConnections))
 		}
 
-		u := getUpstreamFromCache(ip, env)
+		var u *Upstream
+		if env.Blt != nil {
+			u = getUpstreamFromCache(ip, env)
+		}
 		if u == nil {
 			u = &Upstream{
 				Target:    *LoadBalance(targets, ip, stmt),
 				Timestamp: time.Now(),
 			}
-			encoded, err := json.Marshal(u)
-			if err != nil {
-				log.Printf("[%s] - Error: %v\n", ip, err)
+			if env.Blt != nil {
+				encoded, err := json.Marshal(u)
+				if err != nil {
+					log.Printf("[%s] - Error: %v\n", ip, err)
+				}
+				cache.Put(env.Blt, ip, encoded)
+				log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", u.Target.Host, u.Timestamp.Format(df), ip)
 			}
-			cache.Put(env.Blt, ip, encoded)
-			log.Printf("Upstream [%v] with timestamp [%s] for [%s] is cached", u.Target.Host, u.Timestamp.Format(df), ip)
 		}
 
 		req.URL.Scheme = u.Target.Scheme
