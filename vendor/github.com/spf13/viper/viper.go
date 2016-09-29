@@ -463,12 +463,11 @@ func GetViper() *Viper {
 // Get returns an interface. For a specific value use one of the Get____ methods.
 func Get(key string) interface{} { return v.Get(key) }
 func (v *Viper) Get(key string) interface{} {
-	path := strings.Split(key, v.keyDelim)
-
 	lcaseKey := strings.ToLower(key)
 	val := v.find(lcaseKey)
 
 	if val == nil {
+		path := strings.Split(key, v.keyDelim)
 		source := v.find(strings.ToLower(path[0]))
 		if source != nil {
 			if reflect.TypeOf(source).Kind() == reflect.Map {
@@ -624,7 +623,7 @@ func (v *Viper) UnmarshalKey(key string, rawVal interface{}) error {
 // on the fields of the structure are properly set.
 func Unmarshal(rawVal interface{}) error { return v.Unmarshal(rawVal) }
 func (v *Viper) Unmarshal(rawVal interface{}) error {
-	err := mapstructure.WeakDecode(v.AllSettings(), rawVal)
+	err := decode(v.AllSettings(), defaultDecoderConfig(rawVal))
 
 	if err != nil {
 		return err
@@ -635,16 +634,19 @@ func (v *Viper) Unmarshal(rawVal interface{}) error {
 	return nil
 }
 
-// A wrapper around mapstructure.Decode that mimics the WeakDecode functionality
-// while erroring on non existing vals in the destination struct.
-func weakDecodeExact(input, output interface{}) error {
-	config := &mapstructure.DecoderConfig{
-		ErrorUnused:      true,
+// defaultDecoderConfig returns default mapsstructure.DecoderConfig with suppot
+// of time.Duration values
+func defaultDecoderConfig(output interface{}) *mapstructure.DecoderConfig {
+	return &mapstructure.DecoderConfig{
 		Metadata:         nil,
 		Result:           output,
 		WeaklyTypedInput: true,
+		DecodeHook:       mapstructure.StringToTimeDurationHookFunc(),
 	}
+}
 
+// A wrapper around mapstructure.Decode that mimics the WeakDecode functionality
+func decode(input interface{}, config *mapstructure.DecoderConfig) error {
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
 		return err
@@ -655,7 +657,10 @@ func weakDecodeExact(input, output interface{}) error {
 // UnmarshalExact unmarshals the config into a Struct, erroring if a field is nonexistent
 // in the destination struct.
 func (v *Viper) UnmarshalExact(rawVal interface{}) error {
-	err := weakDecodeExact(v.AllSettings(), rawVal)
+	config := defaultDecoderConfig(rawVal)
+	config.ErrorUnused = true
+
+	err := decode(v.AllSettings(), config)
 
 	if err != nil {
 		return err
@@ -749,12 +754,14 @@ func (v *Viper) find(key string) interface{} {
 	// PFlag Override first
 	flag, exists := v.pflags[key]
 	if exists && flag.HasChanged() {
-		jww.TRACE.Println(key, "found in override (via pflag):", flag.ValueString())
 		switch flag.ValueType() {
 		case "int", "int8", "int16", "int32", "int64":
 			return cast.ToInt(flag.ValueString())
 		case "bool":
 			return cast.ToBool(flag.ValueString())
+		case "stringSlice":
+			s := strings.TrimPrefix(flag.ValueString(), "[")
+			return strings.TrimSuffix(s, "]")
 		default:
 			return flag.ValueString()
 		}
@@ -762,7 +769,6 @@ func (v *Viper) find(key string) interface{} {
 
 	val, exists = v.override[key]
 	if exists {
-		jww.TRACE.Println(key, "found in override:", val)
 		return val
 	}
 
@@ -770,24 +776,19 @@ func (v *Viper) find(key string) interface{} {
 		// even if it hasn't been registered, if automaticEnv is used,
 		// check any Get request
 		if val = v.getEnv(v.mergeWithEnvPrefix(key)); val != "" {
-			jww.TRACE.Println(key, "found in environment with val:", val)
 			return val
 		}
 	}
 
 	envkey, exists := v.env[key]
 	if exists {
-		jww.TRACE.Println(key, "registered as env var", envkey)
 		if val = v.getEnv(envkey); val != "" {
-			jww.TRACE.Println(envkey, "found in environment with val:", val)
 			return val
 		}
-		jww.TRACE.Println(envkey, "env value unset:")
 	}
 
 	val, exists = v.config[key]
 	if exists {
-		jww.TRACE.Println(key, "found in config:", val)
 		return val
 	}
 
@@ -800,7 +801,6 @@ func (v *Viper) find(key string) interface{} {
 			if reflect.TypeOf(source).Kind() == reflect.Map {
 				val := v.searchMap(cast.ToStringMap(source), path[1:])
 				if val != nil {
-					jww.TRACE.Println(key, "found in nested config:", val)
 					return val
 				}
 			}
@@ -809,13 +809,11 @@ func (v *Viper) find(key string) interface{} {
 
 	val, exists = v.kvstore[key]
 	if exists {
-		jww.TRACE.Println(key, "found in key/value store:", val)
 		return val
 	}
 
 	val, exists = v.defaults[key]
 	if exists {
-		jww.TRACE.Println(key, "found in defaults:", val)
 		return val
 	}
 
