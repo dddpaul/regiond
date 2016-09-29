@@ -17,6 +17,7 @@ before_install:
   - .travis/oracle/download.sh
   - .travis/oracle/install.sh
   - sudo cp $HOME/gopath/src/github.com/dddpaul/regiond/.travis/oci8.pc /usr/lib/pkgconfig
+  - /u01/app/oracle/product/11.2.0/xe/bin/sqlplus / as sysdba @.travis/oracle/change-password.sql
 
 before_script:
   # Makefile builds docker container and we don't need this in Travis CI
