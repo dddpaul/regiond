@@ -24,3 +24,4 @@ INSERT INTO ip_to_region (ip, region) VALUES ('20.0.0.6', 2);
 INSERT INTO ip_to_region (ip, region) VALUES ('20.0.0.7', 2);
 INSERT INTO ip_to_region (ip, region) VALUES ('20.0.0.8', 2);
 INSERT INTO ip_to_region (ip, region) VALUES ('20.0.0.9', 2);
+
